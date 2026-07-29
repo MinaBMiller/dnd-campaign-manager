@@ -1,0 +1,62 @@
+{
+  "name": "Encounter",
+  "type": "object",
+  "description": "A combat encounter: initiative order, round tracking, and per-participant action economy. Only the DM or server-side functions (asServiceRole) may mutate it directly; players affect it only through the submit-action function.",
+  "properties": {
+    "campaign_id": { "type": "string", "description": "Campaign this encounter belongs to" },
+    "dm_email": { "type": "string", "format": "email", "description": "Denormalized DM email of the owning campaign" },
+    "party_emails": {
+      "type": "array",
+      "items": { "type": "string", "format": "email" },
+      "description": "Denormalized player emails, so the party can see combat state"
+    },
+    "name": { "type": "string", "description": "Encounter name, e.g. \"Ambush at the Old Bridge\"" },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "active", "resolved"],
+      "default": "pending",
+      "description": "Lifecycle state of the encounter"
+    },
+    "round_number": { "type": "integer", "default": 1, "minimum": 1, "description": "Current combat round" },
+    "current_turn_index": { "type": "integer", "default": 0, "minimum": 0, "description": "Index into turn_order of whose turn it currently is" },
+    "turn_order": {
+      "type": "array",
+      "description": "Initiative-sorted participant list with per-round action economy flags",
+      "items": {
+        "type": "object",
+        "properties": {
+          "participant_id": { "type": "string" },
+          "participant_type": { "type": "string", "enum": ["character", "npc"] },
+          "label": { "type": "string" },
+          "initiative": { "type": "integer" },
+          "action_used": { "type": "boolean", "default": false },
+          "bonus_action_used": { "type": "boolean", "default": false },
+          "reaction_used": { "type": "boolean", "default": false }
+        }
+      }
+    },
+    "log_summary": { "type": "string", "description": "Short rolling summary of how the encounter has gone so far" },
+    "last_notified_turn_index": {
+      "type": "integer",
+      "default": -1,
+      "description": "current_turn_index value the notify-turn function last sent a turn notification for, so the entity-update automation doesn't re-notify on unrelated edits to this encounter"
+    },
+    "last_notified_round": {
+      "type": "integer",
+      "default": 0,
+      "description": "round_number value the notify-turn function last sent a turn notification for"
+    }
+  },
+  "required": ["campaign_id", "dm_email", "name"],
+  "rls": {
+    "create": { "$or": [ { "data.dm_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } } ] },
+    "read": {
+      "$or": [
+        { "data.dm_email": "{{user.email}}" },
+        { "data.party_emails": "{{user.email}}" }
+      ]
+    },
+    "update": { "$or": [ { "data.dm_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } } ] },
+    "delete": { "data.dm_email": "{{user.email}}" }
+  }
+}

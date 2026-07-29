@@ -1,0 +1,42 @@
+{
+  "name": "Item",
+  "type": "object",
+  "description": "A piece of equipment or loot. Mechanical effects are DM/server-writable only, to prevent players from self-granting stat bonuses.",
+  "properties": {
+    "campaign_id": { "type": "string", "description": "Campaign this item belongs to" },
+    "dm_email": { "type": "string", "format": "email", "description": "Denormalized DM email of the owning campaign" },
+    "party_emails": {
+      "type": "array",
+      "items": { "type": "string", "format": "email" },
+      "description": "Denormalized player emails, so the party can see loot"
+    },
+    "name": { "type": "string", "description": "Item name" },
+    "description": { "type": "string", "description": "Flavor text / description" },
+    "item_type": {
+      "type": "string",
+      "enum": ["weapon", "armor", "consumable", "treasure", "misc"],
+      "default": "misc",
+      "description": "Item category"
+    },
+    "effects": {
+      "type": "object",
+      "description": "Mechanical effects, e.g. { ac_bonus: 2, damage_dice: \"1d8\", heal_amount: 10 }",
+      "rls": { "write": { "$or": [ { "data.dm_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } } ] } }
+    },
+    "owner_character_id": { "type": "string", "description": "Character currently holding this item; null/absent if unclaimed loot" },
+    "quantity": { "type": "integer", "default": 1, "minimum": 0, "description": "Stack size" },
+    "value_gp": { "type": "integer", "default": 0, "minimum": 0, "description": "Value in gold pieces" }
+  },
+  "required": ["campaign_id", "dm_email", "name"],
+  "rls": {
+    "create": { "$or": [ { "data.dm_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } } ] },
+    "read": {
+      "$or": [
+        { "data.dm_email": "{{user.email}}" },
+        { "data.party_emails": "{{user.email}}" }
+      ]
+    },
+    "update": { "$or": [ { "data.dm_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } } ] },
+    "delete": { "data.dm_email": "{{user.email}}" }
+  }
+}

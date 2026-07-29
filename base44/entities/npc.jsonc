@@ -1,0 +1,70 @@
+{
+  "name": "NPC",
+  "type": "object",
+  "description": "A non-player character. The secrets field is DM-only (read and write) via field-level security, per the game's need to hide information from players.",
+  "properties": {
+    "campaign_id": { "type": "string", "description": "Campaign this NPC belongs to" },
+    "dm_email": { "type": "string", "format": "email", "description": "Denormalized DM email of the owning campaign" },
+    "party_emails": {
+      "type": "array",
+      "items": { "type": "string", "format": "email" },
+      "description": "Denormalized player emails, so the party can see non-secret NPC info"
+    },
+    "name": { "type": "string", "description": "NPC name" },
+    "description": { "type": "string", "format": "richtext", "description": "Public-facing appearance / role description" },
+    "disposition": {
+      "type": "string",
+      "enum": ["friendly", "neutral", "hostile"],
+      "default": "neutral",
+      "description": "Current attitude toward the party"
+    },
+    "stats": {
+      "type": "object",
+      "description": "Core ability scores",
+      "properties": {
+        "str": { "type": "integer", "default": 10 },
+        "dex": { "type": "integer", "default": 10 },
+        "con": { "type": "integer", "default": 10 },
+        "int": { "type": "integer", "default": 10 },
+        "wis": { "type": "integer", "default": 10 },
+        "cha": { "type": "integer", "default": 10 }
+      }
+    },
+    "hp_current": { "type": "integer", "default": 10, "description": "Current hit points" },
+    "hp_max": { "type": "integer", "default": 10, "description": "Maximum hit points" },
+    "ac": { "type": "integer", "default": 10, "description": "Armor class" },
+    "is_alive": { "type": "boolean", "default": true, "description": "Whether the NPC is alive" },
+    "memory": {
+      "type": "array",
+      "description": "Persistent log of past interactions this NPC remembers, oldest first",
+      "items": {
+        "type": "object",
+        "properties": {
+          "summary": { "type": "string" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "secrets": {
+      "type": "string",
+      "format": "richtext",
+      "description": "DM-only notes: hidden motives, true identity, plot secrets",
+      "rls": {
+        "read": { "$or": [ { "data.dm_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } } ] },
+        "write": { "$or": [ { "data.dm_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } } ] }
+      }
+    }
+  },
+  "required": ["campaign_id", "dm_email", "name"],
+  "rls": {
+    "create": { "$or": [ { "data.dm_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } } ] },
+    "read": {
+      "$or": [
+        { "data.dm_email": "{{user.email}}" },
+        { "data.party_emails": "{{user.email}}" }
+      ]
+    },
+    "update": { "$or": [ { "data.dm_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } } ] },
+    "delete": { "data.dm_email": "{{user.email}}" }
+  }
+}

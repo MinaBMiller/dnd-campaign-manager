@@ -1,0 +1,30 @@
+{
+  "name": "QuestFlag",
+  "type": "object",
+  "description": "A discrete, queryable piece of persistent world state (quest progress, faction reputation, discovered secrets) distinct from the freeform Campaign.world_state blob.",
+  "properties": {
+    "campaign_id": { "type": "string", "description": "Campaign this flag belongs to" },
+    "dm_email": { "type": "string", "format": "email", "description": "Denormalized DM email of the owning campaign" },
+    "party_emails": {
+      "type": "array",
+      "items": { "type": "string", "format": "email" },
+      "description": "Denormalized player emails"
+    },
+    "flag_key": { "type": "string", "description": "Stable identifier, e.g. \"met_the_hermit\", \"thieves_guild_reputation\"" },
+    "flag_value": { "type": "string", "description": "Current value, stored as a string (e.g. \"true\", \"12\", \"betrayed\")" },
+    "flag_type": { "type": "string", "enum": ["boolean", "counter", "text"], "default": "boolean" },
+    "description": { "type": "string", "description": "What this flag represents" }
+  },
+  "required": ["campaign_id", "dm_email", "flag_key"],
+  "rls": {
+    "create": { "$or": [ { "data.dm_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } } ] },
+    "read": {
+      "$or": [
+        { "data.dm_email": "{{user.email}}" },
+        { "data.party_emails": "{{user.email}}" }
+      ]
+    },
+    "update": { "$or": [ { "data.dm_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } } ] },
+    "delete": { "data.dm_email": "{{user.email}}" }
+  }
+}

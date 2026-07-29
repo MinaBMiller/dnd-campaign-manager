@@ -1,0 +1,101 @@
+{
+  "name": "Character",
+  "type": "object",
+  "description": "A player character sheet. Combat-relevant fields (hp, ac, conditions, level) are locked to DM/server writes via field-level security so only validated backend logic can change them.",
+  "properties": {
+    "campaign_id": { "type": "string", "description": "Campaign this character belongs to" },
+    "user_email": { "type": "string", "format": "email", "description": "Email of the player who owns this character" },
+    "dm_email": { "type": "string", "format": "email", "description": "Denormalized DM email of the owning campaign, for access control" },
+    "party_emails": {
+      "type": "array",
+      "items": { "type": "string", "format": "email" },
+      "description": "Denormalized list of all player emails in the campaign, so party members can view each other's sheets"
+    },
+    "name": { "type": "string", "description": "Character name" },
+    "class_name": { "type": "string", "description": "Class / archetype, e.g. Fighter, Rogue" },
+    "level": {
+      "type": "integer",
+      "default": 1,
+      "minimum": 1,
+      "maximum": 20,
+      "description": "Character level",
+      "rls": { "update": { "$or": [ { "user_condition": { "role": "admin" } }, { "data.dm_email": "{{user.email}}" } ] } }
+    },
+    "hp_current": {
+      "type": "integer",
+      "default": 10,
+      "description": "Current hit points",
+      "rls": { "update": { "$or": [ { "user_condition": { "role": "admin" } }, { "data.dm_email": "{{user.email}}" } ] } }
+    },
+    "hp_max": {
+      "type": "integer",
+      "default": 10,
+      "description": "Maximum hit points",
+      "rls": { "update": { "$or": [ { "user_condition": { "role": "admin" } }, { "data.dm_email": "{{user.email}}" } ] } }
+    },
+    "ac": {
+      "type": "integer",
+      "default": 10,
+      "description": "Armor class, derived server-side from equipment",
+      "rls": { "update": { "$or": [ { "user_condition": { "role": "admin" } }, { "data.dm_email": "{{user.email}}" } ] } }
+    },
+    "stats": {
+      "type": "object",
+      "description": "Core ability scores",
+      "properties": {
+        "str": { "type": "integer", "default": 10 },
+        "dex": { "type": "integer", "default": 10 },
+        "con": { "type": "integer", "default": 10 },
+        "int": { "type": "integer", "default": 10 },
+        "wis": { "type": "integer", "default": 10 },
+        "cha": { "type": "integer", "default": 10 }
+      }
+    },
+    "conditions": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["poisoned", "stunned", "prone", "restrained", "blinded", "frightened", "paralyzed", "unconscious", "invisible"] },
+      "description": "Active status conditions",
+      "rls": { "update": { "$or": [ { "user_condition": { "role": "admin" } }, { "data.dm_email": "{{user.email}}" } ] } }
+    },
+    "inventory_item_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "IDs of Item records this character carries"
+    },
+    "equipped_item_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "IDs of Item records currently equipped (affects derived AC)"
+    },
+    "spell_slots": {
+      "type": "object",
+      "description": "Spell slot pool keyed by level, e.g. { level_1: { max: 4, used: 1 } }"
+    },
+    "is_alive": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the character is alive / conscious",
+      "rls": { "update": { "$or": [ { "user_condition": { "role": "admin" } }, { "data.dm_email": "{{user.email}}" } ] } }
+    },
+    "initiative_bonus": { "type": "integer", "default": 0, "description": "Modifier applied to initiative rolls" },
+    "portrait_url": { "type": "string", "format": "uri", "description": "Character portrait image URL" }
+  },
+  "required": ["campaign_id", "user_email", "dm_email", "name"],
+  "rls": {
+    "create": true,
+    "read": {
+      "$or": [
+        { "data.user_email": "{{user.email}}" },
+        { "data.dm_email": "{{user.email}}" },
+        { "data.party_emails": "{{user.email}}" }
+      ]
+    },
+    "update": {
+      "$or": [
+        { "data.dm_email": "{{user.email}}" },
+        { "data.user_email": "{{user.email}}" }
+      ]
+    },
+    "delete": { "data.dm_email": "{{user.email}}" }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "LogEntry",
+  "type": "object",
+  "description": "The unified campaign log / party chat feed. All entries — 'chat' included — are server-authoritative, created by backend functions via asServiceRole (client-side create-time RLS on array fields like party_emails proved unreliable, so chat is routed through send-chat-message rather than trusting direct client creates). Frontend subscribes to this entity for the live feed.",
+  "properties": {
+    "campaign_id": { "type": "string", "description": "Campaign this entry belongs to" },
+    "dm_email": { "type": "string", "format": "email", "description": "Denormalized DM email of the owning campaign" },
+    "party_emails": {
+      "type": "array",
+      "items": { "type": "string", "format": "email" },
+      "description": "Denormalized player emails"
+    },
+    "entry_type": {
+      "type": "string",
+      "enum": ["chat", "system", "dice", "narration", "combat"],
+      "default": "chat",
+      "description": "Kind of feed entry"
+    },
+    "author_email": { "type": "string", "format": "email", "description": "Who wrote this entry; absent for system/AI entries" },
+    "author_label": { "type": "string", "description": "Display name shown in the feed" },
+    "content": { "type": "string", "format": "richtext", "description": "Message / narration text" },
+    "related_action_id": { "type": "string", "description": "Action this entry narrates or logs, if any" }
+  },
+  "required": ["campaign_id", "dm_email", "entry_type", "content"],
+  "rls": {
+    "create": { "user_condition": { "role": "admin" } },
+    "read": {
+      "$or": [
+        { "data.dm_email": "{{user.email}}" },
+        { "data.party_emails": "{{user.email}}" }
+      ]
+    },
+    "update": false,
+    "delete": { "data.dm_email": "{{user.email}}" }
+  }
+}

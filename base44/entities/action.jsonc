@@ -1,0 +1,58 @@
+{
+  "name": "Action",
+  "type": "object",
+  "description": "The async turn queue and action log. Any party member or the DM can submit an action (create); whether it is actually legal is validated by the submit-action backend function, not by RLS. Only the DM or server-side functions may resolve/update an action, so a player can never adjudicate their own outcome.",
+  "properties": {
+    "campaign_id": { "type": "string", "description": "Campaign this action belongs to" },
+    "encounter_id": { "type": "string", "description": "Encounter this action is part of, if any (absent for non-combat actions)" },
+    "dm_email": { "type": "string", "format": "email", "description": "Denormalized DM email of the owning campaign" },
+    "party_emails": {
+      "type": "array",
+      "items": { "type": "string", "format": "email" },
+      "description": "Denormalized player emails"
+    },
+    "actor_id": { "type": "string", "description": "ID of the Character or NPC performing the action" },
+    "actor_type": { "type": "string", "enum": ["character", "npc"], "description": "Type of the acting entity" },
+    "action_kind": {
+      "type": "string",
+      "enum": ["attack", "spell", "move", "skill_check", "dialogue", "item_use", "end_turn"],
+      "description": "What kind of action this is"
+    },
+    "target_id": { "type": "string", "description": "ID of the Character or NPC being targeted, if any" },
+    "target_type": { "type": "string", "enum": ["character", "npc"], "description": "Type of the target, if any" },
+    "payload": {
+      "type": "object",
+      "description": "Action-specific parameters, e.g. { weapon_item_id, spell_name, skill, dc }"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "resolved", "rejected"],
+      "default": "pending",
+      "description": "Whether this action has been resolved by the server"
+    },
+    "result": {
+      "type": "object",
+      "description": "Server-computed outcome: rolls, damage, narrative, state changes",
+      "rls": { "write": { "$or": [ { "data.dm_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } } ] } }
+    },
+    "rejection_reason": { "type": "string", "description": "Why an illegal action was rejected" },
+    "resolved_date": { "type": "string", "format": "date-time", "description": "When the action was resolved" }
+  },
+  "required": ["campaign_id", "dm_email", "actor_id", "actor_type", "action_kind"],
+  "rls": {
+    "create": {
+      "$or": [
+        { "data.dm_email": "{{user.email}}" },
+        { "data.party_emails": "{{user.email}}" }
+      ]
+    },
+    "read": {
+      "$or": [
+        { "data.dm_email": "{{user.email}}" },
+        { "data.party_emails": "{{user.email}}" }
+      ]
+    },
+    "update": { "$or": [ { "data.dm_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } } ] },
+    "delete": { "data.dm_email": "{{user.email}}" }
+  }
+}

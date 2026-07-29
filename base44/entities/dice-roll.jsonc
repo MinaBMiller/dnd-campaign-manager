@@ -1,0 +1,36 @@
+{
+  "name": "DiceRoll",
+  "type": "object",
+  "description": "Immutable server-authoritative dice roll log. Only backend functions (service role) may create records here, so every roll in the game is provably server-generated and never client-supplied.",
+  "properties": {
+    "campaign_id": { "type": "string", "description": "Campaign this roll belongs to" },
+    "dm_email": { "type": "string", "format": "email", "description": "Denormalized DM email of the owning campaign" },
+    "party_emails": {
+      "type": "array",
+      "items": { "type": "string", "format": "email" },
+      "description": "Denormalized player emails"
+    },
+    "actor_id": { "type": "string", "description": "ID of the Character or NPC this roll was made for, if any" },
+    "actor_label": { "type": "string", "description": "Display name of who/what rolled" },
+    "roll_purpose": { "type": "string", "description": "What the roll was for, e.g. \"attack roll\", \"persuasion check\"" },
+    "formula": { "type": "string", "description": "Dice formula used, e.g. \"1d20+5\"" },
+    "mode": { "type": "string", "enum": ["normal", "advantage", "disadvantage"], "default": "normal" },
+    "dice_results": { "type": "array", "items": { "type": "integer" }, "description": "Raw individual die results" },
+    "modifier": { "type": "integer", "default": 0 },
+    "total": { "type": "integer", "description": "Final total including modifier" },
+    "is_critical": { "type": "boolean", "default": false },
+    "is_fumble": { "type": "boolean", "default": false }
+  },
+  "required": ["campaign_id", "dm_email", "formula", "total"],
+  "rls": {
+    "create": { "user_condition": { "role": "admin" } },
+    "read": {
+      "$or": [
+        { "data.dm_email": "{{user.email}}" },
+        { "data.party_emails": "{{user.email}}" }
+      ]
+    },
+    "update": false,
+    "delete": false
+  }
+}

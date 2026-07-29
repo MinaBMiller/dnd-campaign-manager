@@ -1,0 +1,11 @@
+{
+  "name": "User",
+  "type": "object",
+  "description": "Built-in auth user, extended with one custom field. Campaign membership (DM vs player) is tracked on Campaign.dm_email/player_emails, not on User.",
+  "properties": {
+    "username": {
+      "type": "string",
+      "description": "Player-chosen display name shown in chat as 'CharacterName (username)'. Not the built-in full_name — that field doesn't persist via auth.updateMe() for this app (confirmed empirically), so a real custom field is used instead."
+    }
+  }
+}

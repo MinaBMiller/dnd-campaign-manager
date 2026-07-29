@@ -1,0 +1,30 @@
+{
+  "name": "DirectMessage",
+  "type": "object",
+  "description": "A private message between the DM and one specific player, invisible to the rest of the party. One thread per (campaign, player) pair, identified by player_email.",
+  "properties": {
+    "campaign_id": { "type": "string", "description": "Campaign this thread belongs to" },
+    "dm_email": { "type": "string", "format": "email", "description": "Denormalized DM email of the owning campaign" },
+    "player_email": { "type": "string", "format": "email", "description": "The player this private thread is with" },
+    "sender_email": { "type": "string", "format": "email", "description": "Who sent this particular message (dm_email or player_email)" },
+    "sender_label": { "type": "string", "description": "Display name of the sender" },
+    "content": { "type": "string", "format": "richtext", "description": "Message text" }
+  },
+  "required": ["campaign_id", "dm_email", "player_email", "sender_email", "content"],
+  "rls": {
+    "create": {
+      "$or": [
+        { "data.dm_email": "{{user.email}}" },
+        { "data.player_email": "{{user.email}}" }
+      ]
+    },
+    "read": {
+      "$or": [
+        { "data.dm_email": "{{user.email}}" },
+        { "data.player_email": "{{user.email}}" }
+      ]
+    },
+    "update": false,
+    "delete": { "data.dm_email": "{{user.email}}" }
+  }
+}
