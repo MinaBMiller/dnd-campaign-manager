@@ -72,15 +72,38 @@ Every AI feature is **optional and DM-controlled** — a per-campaign settings p
 - **Field-level security**: `NPC.secrets` is readable only by the DM; `Character` fields that matter for fairness (`hp_current`, `hp_max`, `ac`, `conditions`, `level`, `is_alive`) can only be *updated* by the DM or by server-side functions — never edited by the player who owns the sheet.
 - **Server-authoritative writes**: `DiceRoll` can only be created by service-role code and can never be updated or deleted — a genuinely tamper-proof audit trail.
 
-## Notes from building this (the interesting part)
+## How this was built
 
-A few things worth documenting because they weren't obvious going in and shaped the final design:
+### Approach
 
-1. **Array-field RLS is unreliable at write time.** Comparing `{{user.email}}` against an array field (e.g. `party_emails`) works fine for reads (`list`/`filter`/`get`), but the same pattern silently rejects valid *creates* from non-admin users — confirmed empirically after a long debugging session with a real second test account. The fix: route any write that depends on party membership through a backend function that checks membership in code and writes via `asServiceRole`, rather than trusting client-side entity RLS for that case. `send-chat-message` exists specifically because of this.
-2. **Real-time `subscribe()` has the same reliability gap** for non-privileged users, so every live view in the frontend has a jittered polling fallback (with backoff on rate limits) layered on top of `subscribe()`, rather than depending on push delivery alone.
-3. **`full_name` doesn't persist via `auth.updateMe()`** on this platform (confirmed empirically — it silently no-ops), so the player-chosen display name is stored as a genuine custom field (`User.username`) instead.
-4. **Automations are dashboard-only** — there's no CLI or local-file path to configure them, so `notify-turn` is invoked directly by the frontend after any action that might change whose turn it is, rather than via an entity-triggered automation.
-5. **A mock-AI test mode** (`SKIP_AI` secret) was added after burning a meaningful chunk of the shared credit pool on iterative testing — every AI-calling function can short-circuit to canned output, verifying the surrounding logic (auth, membership checks, entity writes) without spending real credits.
+The build order was deliberately backend-first, matching the competition's judging emphasis ("the more creative and the deeper on the backend, the better"): design the full entity model and RLS/FLS rules, build and deploy every backend function, and smoke-test the whole system through the Base44 CLI (`base44 exec`) *before* writing a single line of frontend. Only once combat, dice, chat, and AI generation were verified working server-side did the React frontend get built to consume them.
+
+That ordering paid off, but it also created a blind spot described below.
+
+### Key decisions
+
+- **Custom lightweight ruleset instead of D&D 5e.** Replicating real 5e rules would have burned the whole budget on rules logic instead of backend architecture, so HP/AC/stats/conditions were kept intentionally simple.
+- **Denormalize campaign membership onto every child record.** Base44's RLS can't join across entities, so `dm_email`/`party_emails` are copied onto every campaign-scoped entity (`Character`, `NPC`, `Encounter`, `Action`, `DiceRoll`, `QuestFlag`, `LogEntry`) at creation time. This is more redundant than a normalized schema, but it's the only way row-level security can actually express "the DM and this campaign's players, and no one else."
+- **Server-authoritative everything that matters for fairness.** Dice, damage, hit/miss, and pass/fail are never trusted from the client — a request just supplies *inputs* (attack bonus, damage formula); the server rolls and decides.
+- **Both AI integration paths, used for genuinely different jobs**, not for the checkbox: a conversational Agent for private, in-context rules Q&A; multi-step AI Gateway code agents for actions that need to *create real data* (NPCs, items, quest flags) across several steps, not just return text.
+- **AI is opt-in, not load-bearing.** Every AI feature has a per-campaign on/off switch (enforced both in the UI and again server-side in each function), because the app is meant to work for a DM who wants zero AI assistance just as well as one who wants the AI to write the whole campaign.
+- **A DM/player view toggle**, added after noticing the DM's own screen was more cluttered with management tools than a player's screen — lets the DM declutter down to what a player sees without actually changing their permissions.
+
+### Challenges and pivots
+
+A few things didn't survive contact with real usage and got redesigned mid-build:
+
+- **The first version of the AI chat was a narrator persona ("talk to the Dungeon Master").** Live testing revealed the name was actively misleading — it read as "message the human DM privately," not "chat with an AI." Rather than just rename it, this became two separate, correctly-scoped features: a real private `DirectMessage` channel between a player and the human DM, and the AI agent was repurposed into a `rules_assistant` that answers "can I do X?" questions grounded in the player's own character sheet — a more clearly-justified use of an AI agent than a generic narrator.
+- **Party chat silently failed for real (non-admin) player accounts**, while working fine in every one of my own automated tests. The root cause took a genuine debugging session to isolate: my own test account has an admin role, which happens to independently satisfy the same RLS rule that party membership was supposed to grant — so my "verification" was accidentally testing the wrong code path the whole time. The fix (routing the write through a backend function with an explicit membership check, rather than trusting client-side RLS on an array field) is now the pattern used for every write that depends on party membership.
+- **A polling fallback for real-time updates, added after discovering `subscribe()` had the same reliability gap as the RLS issue above, then had to be re-tuned** after the first version (a 3-second poll across every live view on screen) tripped the platform's rate limiter during dual-account testing. The fix was longer, jittered intervals with backoff on failure, not just "poll less."
+- **A mock-AI test mode** (`SKIP_AI` secret) got added mid-build after a "used 75% of your integration credits" warning arrived — a direct consequence of how many AI Gateway code-agent calls (each several model calls, not one) had accumulated from iterative testing. Every AI-calling function can now short-circuit to canned output for verifying plumbing without spending real credits.
+
+### What I learned
+
+- **Documentation describes intent, not guaranteed behavior — verify empirically, especially for security rules.** Two separate platform behaviors (array-field RLS at write time, `full_name` not persisting through `auth.updateMe()`) matched the documented API shape exactly while silently not working as documented. Both were only caught by testing with a real, independent, non-privileged account — not by more careful reading of the docs.
+- **A test account with elevated privileges can make broken authorization logic look correct.** The party-chat bug above only existed because my own verification never exercised the actual restricted path. Once real dual-account testing (DM + player, genuinely separate logins) started, several latent bugs surfaced within the same session.
+- **"Real-time" claims are worth load-testing, not just functionally testing.** `subscribe()` worked in every single-user test; the gap only showed up with a second real account, and the first fix for it (aggressive polling) traded one bug for a different one (rate limiting) — the actual fix needed both a correctness pass and a load pass.
+- **Design decisions should stay reversible under user feedback, not just under new requirements.** The AI-narrator-to-rules-assistant pivot wasn't a bug fix — it was scrapping a feature that technically worked because live usage revealed the concept itself was wrong.
 
 ## Known limitations
 
